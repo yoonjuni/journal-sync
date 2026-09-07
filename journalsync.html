@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Journal sync</title>
+<style>
+  :root {
+    --ink: #1f2a24;
+    --muted: #5f6f66;
+    --paper: #f6f5f0;
+    --card: #ffffff;
+    --line: #d8d6cc;
+    --line-soft: #e8e6de;
+    --leaf: #2f6d4f;
+    --leaf-dark: #24543d;
+    --ok-bg: #e7f2ea;
+    --ok-ink: #24543d;
+    --err-bg: #f7e9e6;
+    --err-ink: #7c352a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: Georgia, 'Times New Roman', serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+    padding: 32px 20px 60px;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  h1 {
+    font-size: 24px; font-weight: 500; margin: 0 0 4px; letter-spacing: 0.01em;
+  }
+  p.sub {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    font-size: 13.5px; color: var(--muted); margin: 0 0 26px; line-height: 1.55;
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 10px; padding: 26px 28px; margin-bottom: 18px;
+  }
+  label {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    font-size: 11.5px; letter-spacing: 0.07em; text-transform: uppercase;
+    color: var(--muted); display: block; margin-bottom: 9px;
+  }
+  select, input[type=text], textarea {
+    width: 100%; font-family: Georgia, serif; font-size: 15px;
+    line-height: 1.6; color: var(--ink); background: #fbfaf7;
+    border: 1px solid var(--line); border-radius: 8px;
+    padding: 11px 14px; outline: none;
+  }
+  select, input[type=text] {
+    font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 13.5px;
+  }
+  input[type=text] { font-size: 12.5px; }
+  textarea { min-height: 300px; resize: vertical; }
+  select:focus, input:focus, textarea:focus { border-color: var(--leaf); }
+  .row { display: flex; align-items: center; gap: 14px; margin-top: 18px; flex-wrap: wrap; }
+  button {
+    font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 14px;
+    font-weight: 500; color: #fff; background: var(--leaf); border: none;
+    border-radius: 8px; padding: 11px 24px; cursor: pointer;
+  }
+  button:hover { background: var(--leaf-dark); }
+  button:disabled { opacity: 0.45; cursor: default; }
+  button.ghost {
+    background: none; color: var(--muted); border: 1px solid var(--line);
+    padding: 9px 16px; font-size: 12.5px;
+  }
+  button.ghost:hover { background: #f2f1ec; color: var(--ink); }
+  #status {
+    font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 13px;
+    border-radius: 6px; padding: 8px 12px; display: none; line-height: 1.5;
+  }
+  #status.ok  { display: block; background: var(--ok-bg);  color: var(--ok-ink); }
+  #status.err { display: block; background: var(--err-bg); color: var(--err-ink); }
+  .config { border-top: 1px solid var(--line-soft); margin-top: 22px; padding-top: 20px; }
+  .config summary {
+    font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12.5px;
+    color: var(--muted); cursor: pointer; list-style: none;
+  }
+  .config summary::-webkit-details-marker { display: none; }
+  .config summary::before { content: "▸ "; }
+  .config[open] summary::before { content: "▾ "; }
+  .config-body { margin-top: 16px; }
+  .field { margin-bottom: 14px; }
+  .note {
+    font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px;
+    color: var(--muted); line-height: 1.6; margin-top: 14px;
+  }
+  .doclink {
+    font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12.5px;
+    color: var(--leaf); text-decoration: none; margin-top: 12px; display: inline-block;
+  }
+  .doclink:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Journal sync</h1>
+  <p class="sub">Appends an entry to the selected Google Doc via its Apps Script endpoint.</p>
+
+  <div class="card">
+    <label for="journal">Journal</label>
+    <select id="journal" onchange="onJournalChange()"></select>
+
+    <div style="margin-top:22px">
+      <label for="entry">Entry</label>
+      <textarea id="entry" placeholder="Paste the session summary here, or type a few lines to log an event as it happens."></textarea>
+    </div>
+
+    <div class="row">
+      <button id="send" onclick="sendEntry()">Send to journal</button>
+      <button class="ghost" onclick="clearEntry()">Clear</button>
+      <div id="status"></div>
+    </div>
+
+    <a id="doclink" class="doclink" href="#" target="_blank" rel="noopener">Open the document →</a>
+
+    <details class="config">
+      <summary>Configure endpoints</summary>
+      <div class="config-body">
+        <div class="field">
+          <label for="ep-coaching">Coaching journal — Apps Script URL</label>
+          <input type="text" id="ep-coaching" placeholder="https://script.google.com/macros/s/.../exec">
+        </div>
+        <div class="field">
+          <label for="ep-lifespan">Biology of Lifespan — Apps Script URL</label>
+          <input type="text" id="ep-lifespan" placeholder="https://script.google.com/macros/s/.../exec">
+        </div>
+        <div class="field">
+          <label for="ep-portfolio">Command Center Portfolio — Apps Script URL</label>
+          <input type="text" id="ep-portfolio" placeholder="https://script.google.com/macros/s/.../exec">
+        </div>
+        <button class="ghost" onclick="saveConfig()">Save endpoints</button>
+        <div class="note">
+          Saved in this browser only. To add a third journal, copy one of the
+          entries in the JOURNALS list near the top of this file's script block.
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <div class="note">
+    Browser security prevents this page from reading the script's response, so the
+    confirmation below only means the request was sent. The document itself is the
+    real confirmation — check the bottom of it after sending.
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+//  Add a journal by copying one of these blocks.
+//  Paste each Apps Script URL here, or use "Configure endpoints"
+//  in the page (which saves to this browser).
+// ─────────────────────────────────────────────────────────────
+const JOURNALS = {
+  coaching: {
+    label: "Executive coaching",
+    endpoint: "",   // set via "Configure endpoints" in the page — do not commit real URLs
+    docUrl: "https://docs.google.com/document/d/1RCoKCExdcn0ETNJunftfgTEXiBaYp5BAWNC8PCVoHBo/edit"
+  },
+  lifespan: {
+    label: "Biology of Lifespan",
+    endpoint: "",   // set via "Configure endpoints" in the page — do not commit real URLs
+    docUrl: "https://docs.google.com/document/d/1AHLDvNsoesEiBy2sF4hhJBncUNPbXuocY1NmUKW_OWk/edit"
+  },
+  portfolio: {
+    label: "Command Center — Portfolio",
+    endpoint: "",   // set via "Configure endpoints" in the page — do not commit real URLs
+    docUrl: "https://docs.google.com/document/d/1ezfl7rvVAH-MD3fLM6BbXpy0DzdI4uiRVHm7IJDDohE/edit"
+  }
+};
+
+const STORE_KEY = "journal-sync-endpoints";
+
+function loadConfig() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORE_KEY) || "{}");
+    for (const k in saved) {
+      if (JOURNALS[k] && saved[k]) JOURNALS[k].endpoint = saved[k];
+    }
+  } catch (e) { /* no saved config */ }
+}
+
+function saveConfig() {
+  const map = {
+    coaching: document.getElementById('ep-coaching').value.trim(),
+    lifespan: document.getElementById('ep-lifespan').value.trim(),
+    portfolio: document.getElementById('ep-portfolio').value.trim()
+  };
+  for (const k in map) { if (map[k]) JOURNALS[k].endpoint = map[k]; }
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(map)); } catch (e) {}
+  setStatus('ok', 'Endpoints saved in this browser.');
+}
+
+function init() {
+  loadConfig();
+  const sel = document.getElementById('journal');
+  for (const key in JOURNALS) {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = JOURNALS[key].label;
+    sel.appendChild(opt);
+  }
+  document.getElementById('ep-coaching').value = JOURNALS.coaching.endpoint;
+  document.getElementById('ep-lifespan').value = JOURNALS.lifespan.endpoint;
+  document.getElementById('ep-portfolio').value = JOURNALS.portfolio.endpoint;
+  onJournalChange();
+}
+
+function onJournalChange() {
+  const j = JOURNALS[document.getElementById('journal').value];
+  const link = document.getElementById('doclink');
+  link.href = j.docUrl;
+  setStatus('', '');
+}
+
+function setStatus(cls, msg) {
+  const s = document.getElementById('status');
+  s.className = cls;
+  s.textContent = msg;
+  if (!cls) s.style.display = 'none';
+}
+
+function clearEntry() {
+  document.getElementById('entry').value = '';
+  setStatus('', '');
+  document.getElementById('entry').focus();
+}
+
+async function sendEntry() {
+  const key = document.getElementById('journal').value;
+  const j = JOURNALS[key];
+  const btn = document.getElementById('send');
+  const text = document.getElementById('entry').value.trim();
+
+  if (!j.endpoint) {
+    setStatus('err', 'No endpoint set for this journal. Open "Configure endpoints" below.');
+    return;
+  }
+  if (!text) {
+    setStatus('err', 'Nothing to send — the entry is empty.');
+    return;
+  }
+
+  btn.disabled = true;
+  setStatus('', '');
+  const stamped = text + "\n\n[sent " + new Date().toLocaleString() + "]";
+
+  try {
+    await fetch(j.endpoint, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ text: stamped })
+    });
+    setStatus('ok', 'Sent to ' + j.label + '. Check the bottom of the document.');
+  } catch (e) {
+    setStatus('err', 'Request failed: ' + e.message);
+  }
+  btn.disabled = false;
+}
+
+init();
+</script>
+</body>
+</html>
