@@ -57,6 +57,8 @@
   input[type=text] { font-size: 12.5px; }
   textarea { min-height: 300px; resize: vertical; }
   select:focus, input:focus, textarea:focus { border-color: var(--leaf); }
+  .selects { display: flex; gap: 16px; }
+  .selects > div { flex: 1; }
   .row { display: flex; align-items: center; gap: 14px; margin-top: 18px; flex-wrap: wrap; }
   button {
     font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 14px;
@@ -103,8 +105,16 @@
   <p class="sub">Appends an entry to the selected Google Doc via its Apps Script endpoint.</p>
 
   <div class="card">
-    <label for="journal">Journal</label>
-    <select id="journal" onchange="onJournalChange()"></select>
+    <div class="selects">
+      <div>
+        <label for="journal">Journal</label>
+        <select id="journal" onchange="onJournalChange()"></select>
+      </div>
+      <div>
+        <label for="tab">Tab</label>
+        <select id="tab"></select>
+      </div>
+    </div>
 
     <div style="margin-top:22px">
       <label for="entry">Entry</label>
@@ -136,8 +146,9 @@
         </div>
         <button class="ghost" onclick="saveConfig()">Save endpoints</button>
         <div class="note">
-          Saved in this browser only. To add a third journal, copy one of the
-          entries in the JOURNALS list near the top of this file's script block.
+          Saved in this browser only. To add another journal, or to change which
+          tabs appear in the Tab dropdown, edit the JOURNALS list near the top of
+          this file's script block.
         </div>
       </div>
     </details>
@@ -146,7 +157,9 @@
   <div class="note">
     Browser security prevents this page from reading the script's response, so the
     confirmation below only means the request was sent. The document itself is the
-    real confirmation — check the bottom of it after sending.
+    real confirmation — check the bottom of the selected tab after sending.
+    If the named tab does not exist, the Apps Script falls back to the last tab
+    in the document.
   </div>
 </div>
 
@@ -160,17 +173,23 @@ const JOURNALS = {
   coaching: {
     label: "Executive coaching",
     endpoint: "",   // set via "Configure endpoints" in the page — do not commit real URLs
-    docUrl: "https://docs.google.com/document/d/1RCoKCExdcn0ETNJunftfgTEXiBaYp5BAWNC8PCVoHBo/edit"
+    docUrl: "https://docs.google.com/document/d/1RCoKCExdcn0ETNJunftfgTEXiBaYp5BAWNC8PCVoHBo/edit",
+    tabs: ["Log", "Working Log"],
+    defaultTab: "Log"
   },
   lifespan: {
     label: "Biology of Lifespan",
     endpoint: "",   // set via "Configure endpoints" in the page — do not commit real URLs
-    docUrl: "https://docs.google.com/document/d/1AHLDvNsoesEiBy2sF4hhJBncUNPbXuocY1NmUKW_OWk/edit"
+    docUrl: "https://docs.google.com/document/d/1AHLDvNsoesEiBy2sF4hhJBncUNPbXuocY1NmUKW_OWk/edit",
+    tabs: ["Log"],
+    defaultTab: "Log"
   },
   portfolio: {
     label: "Command Center — Portfolio",
     endpoint: "",   // set via "Configure endpoints" in the page — do not commit real URLs
-    docUrl: "https://docs.google.com/document/d/1ezfl7rvVAH-MD3fLM6BbXpy0DzdI4uiRVHm7IJDDohE/edit"
+    docUrl: "https://docs.google.com/document/d/1ezfl7rvVAH-MD3fLM6BbXpy0DzdI4uiRVHm7IJDDohE/edit",
+    tabs: ["Log"],
+    defaultTab: "Log"
   }
 };
 
@@ -213,8 +232,18 @@ function init() {
 
 function onJournalChange() {
   const j = JOURNALS[document.getElementById('journal').value];
-  const link = document.getElementById('doclink');
-  link.href = j.docUrl;
+  document.getElementById('doclink').href = j.docUrl;
+
+  const tabSel = document.getElementById('tab');
+  tabSel.innerHTML = '';
+  const tabs = j.tabs && j.tabs.length ? j.tabs : ['Log'];
+  tabs.forEach(function (t) {
+    const opt = document.createElement('option');
+    opt.value = t;
+    opt.textContent = t;
+    if (t === (j.defaultTab || tabs[0])) opt.selected = true;
+    tabSel.appendChild(opt);
+  });
   setStatus('', '');
 }
 
@@ -248,6 +277,7 @@ async function sendEntry() {
 
   btn.disabled = true;
   setStatus('', '');
+  const tab = document.getElementById('tab').value;
   const stamped = text + "\n\n[sent " + new Date().toLocaleString() + "]";
 
   try {
@@ -255,9 +285,9 @@ async function sendEntry() {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ text: stamped })
+      body: JSON.stringify({ text: stamped, tab: tab })
     });
-    setStatus('ok', 'Sent to ' + j.label + '. Check the bottom of the document.');
+    setStatus('ok', 'Sent to ' + j.label + ' → "' + tab + '" tab. Check the bottom of that tab.');
   } catch (e) {
     setStatus('err', 'Request failed: ' + e.message);
   }
