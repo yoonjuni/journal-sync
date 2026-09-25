@@ -117,7 +117,7 @@
 
     <div>
       <label for="entry">Entry</label>
-      <textarea id="entry" placeholder="Paste the session summary here."></textarea>
+      <textarea id="entry" oninput="clearStatus()" placeholder="Paste the session summary here."></textarea>
     </div>
 
     <div class="row">
@@ -167,7 +167,7 @@ const JOURNALS = {
   },
   journal: {
     label: "Writing journal",
-    docUrl: "",            // ← fill in once the journal doc exists
+    docUrl: "https://docs.google.com/document/d/1rOP4fApIIcG8ATDtoL6m2iN5cyqs3c-xwYUu-5C53bU/edit",
     tab: "Log",
     storeKey: "taeon-journal-sync-endpoint"
   }
@@ -225,6 +225,10 @@ function setStatus(cls, msg) {
   s.style.display = cls ? '' : 'none';
 }
 
+function clearStatus() {
+  if (document.getElementById('status').className) setStatus('', '');
+}
+
 function clearEntry() {
   document.getElementById('entry').value = '';
   setStatus('', '');
@@ -247,7 +251,7 @@ async function sendEntry() {
   }
 
   btn.disabled = true;
-  setStatus('', '');
+  setStatus('ok', 'Sending to ' + j.label + '…');
   const stamped = text + "\n\n[sent " + new Date().toLocaleString() + "]";
 
   try {
